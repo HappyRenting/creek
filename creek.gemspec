@@ -18,12 +18,12 @@ Gem::Specification.new do |spec|
   spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
   spec.require_paths = ["lib"]
 
-  spec.required_ruby_version = '>= 2.0.0'
+  spec.required_ruby_version = '>= 2.7.0'
 
   spec.add_development_dependency "bundler", ">= 2.2.10"
   spec.add_development_dependency "rake"
-  spec.add_development_dependency 'rspec', '~> 3.6.0'
-  spec.add_development_dependency 'pry-byebug'
+  spec.add_development_dependency 'rspec', '>= 3.11.0'
+  spec.add_development_dependency 'pry-byebug', '>= 3.9.0'
 
   spec.add_dependency 'nokogiri', '>= 1.10.0'
   spec.add_dependency 'rubyzip', '>= 1.2.2'
