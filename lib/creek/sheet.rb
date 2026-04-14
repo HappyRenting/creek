@@ -96,36 +96,40 @@ module Creek
           row, cells, cell = nil, {}, nil
           cell_type = nil
           cell_style_idx = nil
-          @book.files.file.open(path) do |xml|
-            Nokogiri::XML::Reader.from_io(xml).each do |node|
-              if node.name == 'row' && node.node_type == opener
-                row = node.attributes
-                row['cells'] = {}
-                cells = {}
-                y << (include_meta_data ? row : cells) if node.self_closing?
-              elsif node.name == 'row' && node.node_type == closer
-                processed_cells = fill_in_empty_cells(cells, row['r'], cell, use_simple_rows_format)
-                @headers = processed_cells if with_headers && row['r'] == HEADERS_ROW_NUMBER
+          # Reading the zip entry into memory before parsing avoids a libxml2
+          # Reader failure ("Couldn't find end of Start Tag ...") triggered on
+          # sheets containing OOXML extensions such as
+          # <extLst><x14:dataValidations xr:uid=...> when fed through
+          # Zip::InputStream chunks.
+          xml = @book.files.file.read(path)
+          Nokogiri::XML::Reader.from_memory(xml).each do |node|
+            if node.name == 'row' && node.node_type == opener
+              row = node.attributes
+              row['cells'] = {}
+              cells = {}
+              y << (include_meta_data ? row : cells) if node.self_closing?
+            elsif node.name == 'row' && node.node_type == closer
+              processed_cells = fill_in_empty_cells(cells, row['r'], cell, use_simple_rows_format)
+              @headers = processed_cells if with_headers && row['r'] == HEADERS_ROW_NUMBER
 
-                if @images_present
-                  processed_cells.each do |cell_name, cell_value|
-                    next unless cell_value.nil?
+              if @images_present
+                processed_cells.each do |cell_name, cell_value|
+                  next unless cell_value.nil?
 
-                    processed_cells[cell_name] = images_at(cell_name)
-                  end
+                  processed_cells[cell_name] = images_at(cell_name)
                 end
+              end
 
-                row['cells'] = processed_cells
-                y << (include_meta_data ? row : processed_cells)
-              elsif node.name == 'c' && node.node_type == opener
-                cell_type      = node.attributes['t']
-                cell_style_idx = node.attributes['s']
-                cell           = node.attributes['r']
-              elsif %w[v t].include?(node.name) && node.node_type == opener
-                unless cell.nil?
-                  node.read
-                  cells[cell] = convert(node.value, cell_type, cell_style_idx)
-                end
+              row['cells'] = processed_cells
+              y << (include_meta_data ? row : processed_cells)
+            elsif node.name == 'c' && node.node_type == opener
+              cell_type      = node.attributes['t']
+              cell_style_idx = node.attributes['s']
+              cell           = node.attributes['r']
+            elsif %w[v t].include?(node.name) && node.node_type == opener
+              unless cell.nil?
+                node.read
+                cells[cell] = convert(node.value, cell_type, cell_style_idx)
               end
             end
           end

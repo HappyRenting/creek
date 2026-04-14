@@ -12,6 +12,18 @@ describe 'sheet' do
     cell[cell_name] if cell
   end
 
+  context 'with OOXML x14:dataValidations extensions' do
+    # Regression: libxml2 Reader fails on <extLst><x14:dataValidations xr:uid=...>
+    # when the sheet is fed through a Zip::InputStream opened from an in-memory
+    # zip (StringIO), which is how callers typically load remote blobs.
+    it 'parses sheets containing <extLst><x14:dataValidations xr:uid=...>' do
+      io = StringIO.new(File.binread('spec/fixtures/sheet_with_x14_datavalidations.xlsx'))
+      book = Creek::Book.new(io)
+      sheet = book.sheets.find { |s| s.name == 'Modèle' }
+      expect { sheet.rows.to_a }.not_to raise_error
+    end
+  end
+
   context 'escaped ampersand' do
     let(:book_escaped) { Creek::Book.new('spec/fixtures/escaped.xlsx') }
     it 'does NOT escape ampersand' do
