@@ -79,12 +79,28 @@ module Creek
       rows_generator true, true
     end
 
+    ##
+    # Provides an Enumerator that returns a hash representing each row, where
+    # each cell value is a hash { value:, type:, format_code: } so consumers
+    # can format the data exactly as Excel displays it.
+    # - :value       => the cast Ruby value (same as #rows)
+    # - :type        => :date / :time / :date_time / :float / :percentage /
+    #                   :string / :unsupported / ...
+    # - :format_code => raw Excel format string (e.g. "h:mm",
+    #                   "dd/mm/yyyy hh:mm") or nil if unknown.
+    # Empty cells stay nil, like #rows.
+    def rows_with_styles
+      rows_generator false, false, with_styles: true
+    end
+
     private
 
     ##
     # Returns a hash per row that includes the cell ids and values.
     # Empty cells will be also included in the hash with a nil value.
-    def rows_generator include_meta_data=false, use_simple_rows_format=false
+    # When with_styles: true, each cell value is a hash
+    # { value:, type:, format_code: } instead of the raw cast value.
+    def rows_generator include_meta_data=false, use_simple_rows_format=false, with_styles: false
       path = if @sheetfile.start_with? "/xl/" or @sheetfile.start_with? "xl/" then @sheetfile else "xl/#{@sheetfile}" end
       if @book.files.file.exist?(path)
         # SAX parsing, Each element in the stream comes through as two events:
@@ -124,7 +140,8 @@ module Creek
               elsif %w[v t].include?(node.name) && node.node_type == opener
                 unless cell.nil?
                   node.read
-                  cells[cell] = convert(node.value, cell_type, cell_style_idx)
+                  value = convert(node.value, cell_type, cell_style_idx)
+                  cells[cell] = with_styles ? cell_with_style(value, cell_style_idx) : value
                 end
               end
             end
@@ -136,6 +153,15 @@ module Creek
     def convert(value, type, style_idx)
       style = @book.style_types[style_idx.to_i]
       Creek::Styles::Converter.call(value, type, style, converter_options)
+    end
+
+    def cell_with_style(value, style_idx)
+      idx = style_idx.to_i
+      {
+        value:       value,
+        type:        @book.style_types[idx],
+        format_code: @book.format_code_for(@book.num_fmt_ids[idx])
+      }
     end
 
     def converter_options

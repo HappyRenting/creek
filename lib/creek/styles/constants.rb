@@ -36,6 +36,47 @@ module Creek
         48 => :bignum,         # ##0.0E+0
         49 => :unsupported     # @
       }
+
+      # Map of non-custom numFmtId to the Excel built-in format code string.
+      # Excel does not embed the format code for built-in numFmtIds in xlsx
+      # files; this table mirrors the Microsoft spec so consumers can recover
+      # the original format string from a style index.
+      #
+      # Keys must stay in sync with NumFmtMap above (same spec, different
+      # projection: NumFmtMap gives the cast type, this gives the raw string).
+      #
+      # Adapted from Roo::Excelx::Format::STANDARD_FORMATS (MIT license).
+      # https://github.com/roo-rb/roo/blob/master/lib/roo/excelx/format.rb
+      BuiltinFormatCodes = {
+        0  => 'General',
+        1  => '0',
+        2  => '0.00',
+        3  => '#,##0',
+        4  => '#,##0.00',
+        9  => '0%',
+        10 => '0.00%',
+        11 => '0.00E+00',
+        12 => '# ?/?',
+        13 => '# ??/??',
+        14 => 'mm-dd-yy',
+        15 => 'd-mmm-yy',
+        16 => 'd-mmm',
+        17 => 'mmm-yy',
+        18 => 'h:mm AM/PM',
+        19 => 'h:mm:ss AM/PM',
+        20 => 'h:mm',
+        21 => 'h:mm:ss',
+        22 => 'm/d/yy h:mm',
+        37 => '#,##0 ;(#,##0)',
+        38 => '#,##0 ;[Red](#,##0)',
+        39 => '#,##0.00;(#,##0.00)',
+        40 => '#,##0.00;[Red](#,##0.00)',
+        45 => 'mm:ss',
+        46 => '[h]:mm:ss',
+        47 => 'mmss.0',
+        48 => '##0.0E+0',
+        49 => '@'
+      }.freeze
     end
   end
 end

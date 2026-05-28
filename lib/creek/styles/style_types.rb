@@ -52,6 +52,27 @@ module Creek
         NumFmtMap[id] || custom_style_types[id]
       end
 
+      # Returns the array of numFmtIds in cellXfs order (one entry per style
+      # index used by sheet cells). Mirrors #call but keeps the raw numFmtId
+      # instead of deriving a type symbol.
+      def num_fmt_ids
+        @num_fmt_ids ||= styles_xml_doc.css('styleSheet cellXfs xf').map do |xstyle|
+          id = num_fmt_id(xstyle)
+          id && id.to_i
+        end
+      end
+
+      # Map of (numFmtId >= 164) (custom styles) to the raw formatCode string.
+      # Distinct from #custom_style_types which maps to a derived type symbol.
+      # ex. {164 => "dd/mm/yyyy hh:mm"}
+      def custom_format_codes
+        @custom_format_codes ||= styles_xml_doc.css('styleSheet numFmts numFmt').inject({}) do |acc, xstyle|
+          index      = xstyle.attributes['numFmtId'].value.to_i
+          acc[index] = xstyle.attributes['formatCode'].value
+          acc
+        end
+      end
+
       # Map of (numFmtId >= 164) (custom styles) to our best guess at the type
       # ex. {164 => :date_time}
       def custom_style_types
