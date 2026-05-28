@@ -24,6 +24,38 @@ describe 'sheet' do
     end
   end
 
+  describe '#rows_with_styles' do
+    let(:book_dates) { Creek::Book.new('spec/fixtures/sample_dates.xlsx') }
+    let(:rows) { book_dates.sheets[0].rows_with_styles.to_a }
+
+    it 'returns { value:, type:, format_code: } for each non-empty cell' do
+      cell = rows[0]['A1']
+      expect(cell).to eq(value: 'Table 1', type: :string, format_code: 'General')
+    end
+
+    it 'exposes the type and built-in format_code for date cells' do
+      cell = rows[2]['B3']
+      expect(cell[:value]).to eq(Date.new(2018, 1, 1))
+      expect(cell[:type]).to eq(:date)
+      expect(cell[:format_code]).to eq('mm-dd-yy')
+    end
+
+    it 'exposes the raw custom format_code for date_time cells' do
+      cell = rows[3]['B4']
+      expect(cell[:type]).to eq(:date_time)
+      expect(cell[:format_code]).to eq("[$-409]d\\-m\\-yy\\ h:mm\\ AM/PM;@")
+    end
+
+    it 'keeps empty cells as nil (no style hash)' do
+      expect(rows[0]['B1']).to be_nil
+    end
+
+    it 'leaves the regular #rows API unchanged (rétrocompat)' do
+      raw = book_dates.sheets[0].rows.to_a
+      expect(raw[2]['B3']).to eq(Date.new(2018, 1, 1))
+    end
+  end
+
   describe '#rows' do
     context 'with excel with images' do
       context 'with images preloading' do
