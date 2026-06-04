@@ -63,6 +63,26 @@ module Creek
       @style_types ||= Creek::Styles.new(self).style_types
     end
 
+    # Array of numFmtIds in cellXfs order (one entry per style index).
+    def num_fmt_ids
+      @num_fmt_ids ||= Creek::Styles.new(self).num_fmt_ids
+    end
+
+    # Map of (numFmtId >= 164) (custom styles) to the raw formatCode string.
+    def custom_format_codes
+      @custom_format_codes ||= Creek::Styles.new(self).custom_format_codes
+    end
+
+    # Returns the raw Excel format code string for a given numFmtId.
+    # Built-in numFmtIds (0..49) are resolved against the Microsoft spec,
+    # custom numFmtIds (>= 164) against the file's <numFmts> section.
+    # Returns nil if the id is unknown.
+    def format_code_for(num_fmt_id)
+      return nil if num_fmt_id.nil?
+      id = num_fmt_id.to_i
+      Creek::Styles::Constants::BuiltinFormatCodes[id] || custom_format_codes[id]
+    end
+
     def close
       @files.close
     end
