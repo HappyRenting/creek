@@ -102,7 +102,7 @@ module Creek
     # When with_styles: true, each cell value is a hash
     # { value:, type:, format_code: } instead of the raw cast value.
     def rows_generator(include_meta_data=false, use_simple_rows_format=false, with_styles: false)
-      path = @sheetfile.start_with?('/xl/') or @sheetfile.start_with?('xl/') ? @sheetfile : "xl/#{@sheetfile}"
+      path = (@sheetfile.start_with?('/xl/') || @sheetfile.start_with?('xl/')) ? @sheetfile : "xl/#{@sheetfile}"
       return unless @book.files.file.exist?(path)
 
       # SAX parsing, Each element in the stream comes through as two events:
