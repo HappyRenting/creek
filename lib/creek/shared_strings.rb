@@ -1,24 +1,26 @@
+# frozen_string_literal: true
+
 require 'zip/filesystem'
 require 'nokogiri'
 
 module Creek
-
   class Creek::SharedStrings
+    SPREADSHEETML_URI = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
 
     attr_reader :book, :dictionary
 
-    def initialize book
+    def initialize(book)
       @book = book
       parse_shared_shared_strings
     end
 
     def parse_shared_shared_strings
-      path = "xl/sharedStrings.xml"
-      if @book.files.file.exist?(path)
-        doc = @book.files.file.open path
-        xml = Nokogiri::XML::Document.parse doc
-        parse_shared_string_from_document(xml)
-      end
+      path = 'xl/sharedStrings.xml'
+      return unless @book.files.file.exist?(path)
+
+      doc = @book.files.file.open path
+      xml = Nokogiri::XML::Document.parse doc
+      parse_shared_string_from_document(xml)
     end
 
     def parse_shared_string_from_document(xml)
@@ -26,19 +28,26 @@ module Creek
     end
 
     def self.parse_shared_string_from_document(xml)
-      dictionary = Hash.new
+      dictionary = {}
+      namespace = xml.namespaces.detect { |_key, uri| uri == SPREADSHEETML_URI }
+      prefix = if namespace && namespace[0].start_with?('xmlns:')
+                 namespace[0].delete_prefix('xmlns:') + '|'
+               else
+                 ''
+               end
+      node_selector = "#{prefix}si"
+      text_selector = ">#{prefix}t, #{prefix}r #{prefix}t"
 
-      xml.css('si').each_with_index do |si, idx|
-        text_nodes = si.css('>t, r t')
-        if text_nodes.count == 1 # plain text node
-          dictionary[idx] = Creek::Styles::Converter.unescape_string(text_nodes.first.content)
-        else # rich text nodes with text fragments
-          dictionary[idx] = text_nodes.map { |n| Creek::Styles::Converter.unescape_string(n.content) }.join('')
-        end
+      xml.css(node_selector).each_with_index do |si, idx|
+        text_nodes = si.css(text_selector)
+        dictionary[idx] = if text_nodes.count == 1 # plain text node
+                            Creek::Styles::Converter.unescape_string(text_nodes.first.content)
+                          else # rich text nodes with text fragments
+                            text_nodes.map { |n| Creek::Styles::Converter.unescape_string(n.content) }.join('')
+                          end
       end
 
       dictionary
     end
-
   end
 end

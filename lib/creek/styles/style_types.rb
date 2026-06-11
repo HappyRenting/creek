@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # https://github.com/hmcgowan/roo/blob/master/lib/roo/excelx.rb
 # https://github.com/woahdae/simple_xlsx_reader/blob/master/lib/simple_xlsx_reader.rb#L231
 module Creek
@@ -5,6 +7,7 @@ module Creek
     class StyleTypes
       include Creek::Styles::Constants
       attr_accessor :styles_xml_doc
+
       def initialize(styles_xml_doc)
         @styles_xml_doc = styles_xml_doc
       end
@@ -24,17 +27,18 @@ module Creek
       # custom). Hence this style types array, rather than a map of numFmtId to
       # type.
       def call
-        @style_types ||= begin
-          styles_xml_doc.css('styleSheet cellXfs xf').map do |xstyle|
-            a = num_fmt_id(xstyle)
-            style_type_by_num_fmt_id( a )
-          end
+        # rubocop:disable Naming/MemoizedInstanceVariableName
+        @style_types ||= styles_xml_doc.css('styleSheet cellXfs xf').map do |xstyle|
+          a = num_fmt_id(xstyle)
+          style_type_by_num_fmt_id(a)
         end
+        # rubocop:enable Naming/MemoizedInstanceVariableName
       end
 
-      #returns the numFmtId value if it's available
+      # returns the numFmtId value if it's available
       def num_fmt_id(xstyle)
         return nil unless xstyle.attributes['numFmtId']
+
         xstyle.attributes['numFmtId'].value
       end
 
@@ -48,6 +52,7 @@ module Creek
       # like a bad idea, but we try to be flexible and just go with it.
       def style_type_by_num_fmt_id(id)
         return nil unless id
+
         id = id.to_i
         NumFmtMap[id] || custom_style_types[id]
       end
@@ -76,13 +81,10 @@ module Creek
       # Map of (numFmtId >= 164) (custom styles) to our best guess at the type
       # ex. {164 => :date_time}
       def custom_style_types
-        @custom_style_types ||= begin
-          styles_xml_doc.css('styleSheet numFmts numFmt').inject({}) do |acc, xstyle|
-            index      = xstyle.attributes['numFmtId'].value.to_i
-            value      = xstyle.attributes['formatCode'].value
-            acc[index] = determine_custom_style_type(value)
-            acc
-          end
+        @custom_style_types ||= styles_xml_doc.css('styleSheet numFmts numFmt').each_with_object({}) do |xstyle, acc|
+          index = xstyle.attributes['numFmtId'].value.to_i
+          value      = xstyle.attributes['formatCode'].value
+          acc[index] = determine_custom_style_type(value)
         end
       end
 
@@ -99,7 +101,7 @@ module Creek
         # Looks for one of ymdhis outside of meta-stuff like [Red]
         return :date_time if string =~ /(^|\])[^\[]*[ymdhis]/i
 
-        return :unsupported
+        :unsupported
       end
     end
   end

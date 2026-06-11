@@ -8,6 +8,7 @@ module Creek
     include Creek::Utils
 
     HEADERS_ROW_NUMBER = '1'
+    SPREADSHEETML_URI = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
 
     attr_accessor :with_headers
     attr_reader :book,
@@ -100,49 +101,68 @@ module Creek
     # Empty cells will be also included in the hash with a nil value.
     # When with_styles: true, each cell value is a hash
     # { value:, type:, format_code: } instead of the raw cast value.
-    def rows_generator include_meta_data=false, use_simple_rows_format=false, with_styles: false
-      path = if @sheetfile.start_with? "/xl/" or @sheetfile.start_with? "xl/" then @sheetfile else "xl/#{@sheetfile}" end
-      if @book.files.file.exist?(path)
-        # SAX parsing, Each element in the stream comes through as two events:
-        # one to open the element and one to close it.
-        opener = Nokogiri::XML::Reader::TYPE_ELEMENT
-        closer = Nokogiri::XML::Reader::TYPE_END_ELEMENT
-        Enumerator.new do |y|
-          @headers = nil
-          row, cells, cell = nil, {}, nil
-          cell_type = nil
-          cell_style_idx = nil
-          @book.files.file.open(path) do |xml|
-            Nokogiri::XML::Reader.from_io(xml).each do |node|
-              if node.name == 'row' && node.node_type == opener
-                row = node.attributes
-                row['cells'] = {}
-                cells = {}
-                y << (include_meta_data ? row : cells) if node.self_closing?
-              elsif node.name == 'row' && node.node_type == closer
-                processed_cells = fill_in_empty_cells(cells, row['r'], cell, use_simple_rows_format)
-                @headers = processed_cells if with_headers && row['r'] == HEADERS_ROW_NUMBER
+    def rows_generator(include_meta_data=false, use_simple_rows_format=false, with_styles: false)
+      path = @sheetfile.start_with?('/xl/') or @sheetfile.start_with?('xl/') ? @sheetfile : "xl/#{@sheetfile}"
+      return unless @book.files.file.exist?(path)
 
-                if @images_present
-                  processed_cells.each do |cell_name, cell_value|
-                    next unless cell_value.nil?
+      # SAX parsing, Each element in the stream comes through as two events:
+      # one to open the element and one to close it.
+      opener = Nokogiri::XML::Reader::TYPE_ELEMENT
+      closer = Nokogiri::XML::Reader::TYPE_END_ELEMENT
+      Enumerator.new do |y|
+        @headers = nil
+        row = nil
+        cells = {}
+        cell = nil
+        cell_type = nil
+        cell_style_idx = nil
+        @book.files.file.open(path) do |xml|
+          prefix = ''
+          name_row = 'row'
+          name_c = 'c'
+          name_v = 'v'
+          name_t = 't'
+          Nokogiri::XML::Reader.from_io(xml).each do |node|
+            if prefix.empty? && node.namespaces.any?
+              namespace = node.namespaces.detect { |_key, uri| uri == SPREADSHEETML_URI }
+              prefix = if namespace && namespace[0].start_with?('xmlns:')
+                         namespace[0].delete_prefix('xmlns:') + ':'
+                       else
+                         ''
+                       end
+              name_row = "#{prefix}row"
+              name_c = "#{prefix}c"
+              name_v = "#{prefix}v"
+              name_t = "#{prefix}t"
+            end
+            if node.name == name_row && node.node_type == opener
+              row = node.attributes
+              row['cells'] = {}
+              cells = {}
+              y << (include_meta_data ? row : cells) if node.self_closing?
+            elsif node.name == name_row && node.node_type == closer
+              processed_cells = fill_in_empty_cells(cells, row['r'], cell, use_simple_rows_format)
+              @headers = processed_cells if with_headers && row['r'] == HEADERS_ROW_NUMBER
 
-                    processed_cells[cell_name] = images_at(cell_name)
-                  end
+              if @images_present
+                processed_cells.each do |cell_name, cell_value|
+                  next unless cell_value.nil?
+
+                  processed_cells[cell_name] = images_at(cell_name)
                 end
+              end
 
-                row['cells'] = processed_cells
-                y << (include_meta_data ? row : processed_cells)
-              elsif node.name == 'c' && node.node_type == opener
-                cell_type      = node.attributes['t']
-                cell_style_idx = node.attributes['s']
-                cell           = node.attributes['r']
-              elsif %w[v t].include?(node.name) && node.node_type == opener
-                unless cell.nil?
-                  node.read
-                  value = convert(node.value, cell_type, cell_style_idx)
-                  cells[cell] = with_styles ? cell_with_style(value, cell_style_idx) : value
-                end
+              row['cells'] = processed_cells
+              y << (include_meta_data ? row : processed_cells)
+            elsif node.name == name_c && node.node_type == opener
+              cell_type      = node.attributes['t']
+              cell_style_idx = node.attributes['s']
+              cell           = node.attributes['r']
+            elsif (node.name == name_v || node.name == name_t) && node.node_type == opener
+              unless cell.nil?
+                node.read
+                value = convert(node.value, cell_type, cell_style_idx)
+                cells[cell] = with_styles ? cell_with_style(value, cell_style_idx) : value
               end
             end
           end
@@ -207,7 +227,7 @@ module Creek
     def cell_id(column, use_simple_rows_format, row_number)
       return "#{column}#{row_number}" unless use_simple_rows_format
 
-      with_headers && headers ? headers[column] : column
+      (with_headers && headers) ? headers[column] : column
     end
   end
 end
